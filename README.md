@@ -19,10 +19,10 @@
 
 ##### Research Questions and Hypotheses:
 
-**RQ1**    
-**RQ2**   
-**H1**    
-**H2**   
+**RQ1**  
+**RQ2**  
+**H1**  
+**H2**  
 **H3**  
 
 ---
@@ -47,9 +47,9 @@ outputs/
 ---
 
 ##### Data:
-- Sources: 
-- Format: 
-- Language: 
+- Sources:
+- Format:
+- Language:
 - Period:
 
 ---
