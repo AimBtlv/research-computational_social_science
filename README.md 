@@ -1,51 +1,78 @@
-## reasearch-Computational Social Science
+## research-Computational Social Science
 
 **Theme:** -
 
-##### Description: [2-3sentences]
-*****
+##### Description:
+[2-3 sentences]
+
+---
 
 ##### Project Status:
 🟡 in Process / 🟢 Complete / 🔴 On a Wait
 
-##### About Project: [2-3 sentences: what was developed? what reason? what the methods?]
+---
 
-***
+##### About Project:
+[2-3 sentences: what was developed? what reason? what the methods?]
+
+---
+
 ##### Research Questions and Hypotheses:
+
 **RQ1**    
 **RQ2**   
 **H1**    
 **H2**   
 **H3**  
-***
-##### Repository Structure:
-- intro/
-- datasets/
-- notebooks/
-- scripts/
-- images/
-- bibliography/
-- documentation/
-- outputs/
-***
-##### Methodology:
-***
-##### Data:
-Sources: 
-Format: 
-Language: 
-Period:
-***
-##### Tools:
-Python 3.x
-[список библиотек]
-***
-##### How To Use: [2-3 шага если нужно]
-***
-##### Status and Result: [Что уже сделано]
-***
-##### Author:
-Aim Batalova — Ca'Foscari University — email: aim.b14.04git@gmail.com
-***
-##### License:
 
+---
+
+##### Repository Structure:
+
+```
+intro/
+datasets/
+notebooks/
+scripts/
+images/
+bibliography/
+documentation/
+outputs/
+```
+
+---
+
+##### Methodology:
+
+---
+
+##### Data:
+- Sources: 
+- Format: 
+- Language: 
+- Period:
+
+---
+
+##### Tools:
+- Python 3.x
+- [список библиотек]
+
+---
+
+##### How To Use:
+[2-3 steps]
+
+---
+
+##### Status and Result:
+[Что уже сделано]
+
+---
+
+##### Author:
+Aim Batalova — Ca'Foscari University — aim.b14.04git@gmail.com
+
+---
+
+##### License:
