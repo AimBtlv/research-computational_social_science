@@ -21,9 +21,15 @@
 
 **RQ1**  
 **RQ2**  
+<<<<<<< HEAD:README.md
 **H1**  
 **H2**  
 **H3**  
+=======
+**H1**
+**H2** 
+**H3**
+>>>>>>> dfe3d90 (RM:structure body):README.md 
 
 ---
 
