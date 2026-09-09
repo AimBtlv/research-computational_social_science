@@ -6,20 +6,23 @@ Description: Collects Wikipedia pageview data for the "Michael Jackson" article.
              Combines archival hourly dumps (2009, streamed directly from the
              network without ever writing to disk) with the modern REST
              Pageviews API (2015-present). Includes retry with backoff for
-             both HTTP-level and network-level errors, broadened exception
-             handling for mid-stream network drops, a more cautious request
-             pace for the initial run, and per-day checkpoint saving so
-             progress is never lost on interruption.
+             HTTP-level errors, network-level exceptions, and raw urllib3-level
+             read timeouts. Each hourly file is retried up to MAX_RETRIES times
+             before being counted as 0. Adds resume support: on startup, the
+             script checks the checkpoint CSV and skips any day already fully
+             collected in a previous run, instead of re-downloading it.
 Author: [Your Name]
 Date: 2026-09-09
-Version: 1.3
+Version: 1.5
 """
 
 import time
 import random
 import gzip
+import urllib3
 import requests
 import pandas as pd
+from pathlib import Path
 from datetime import datetime, timedelta
 
 # --- Configuration ---------------------------------------------------------
@@ -32,20 +35,15 @@ HEADERS = {
 }
 
 ARTICLE = "Michael_Jackson"
-
-# PATCH 2: increased from 1.5s to 3.0s for a more cautious first run.
-# Once the run completes cleanly with no rate-limit errors, this can be
-# safely lowered back to 1.5-2.0s for subsequent runs.
 SLEEP_BETWEEN_REQUESTS = 3.0
 MAX_RETRIES = 5
+CHECKPOINT_FILE = Path("pageviews_2009_partial.csv")
 
 
 def request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
     """
     Perform an HTTP request with retries for HTTP-level errors (429, 503)
     and network-level exceptions (timeouts, dropped connections).
-    Returns the raw response object; the caller is responsible for streaming
-    or reading the body as appropriate.
     """
     for attempt in range(MAX_RETRIES):
         try:
@@ -69,7 +67,7 @@ def request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
             continue
 
         if response.status_code == 404:
-            return response  # let the caller decide how to handle a missing file
+            return response
 
         response.raise_for_status()
         return response
@@ -82,73 +80,101 @@ def get_article_count_streaming(date_str: str, hour: str, article: str, lang: st
     """
     Stream a single hourly pagecounts-raw file directly from the network,
     decompress it on the fly, and return the hit count for one article.
-    The file is never written to disk: gzip.GzipFile reads straight from
-    the response's raw socket stream.
-    date_str format: YYYYMMDD, hour format: HHMMSS (e.g. '000000')
+    Retries the whole download+parse attempt up to MAX_RETRIES times on
+    transient network errors, including raw urllib3-level read timeouts.
     """
     year, month = date_str[:4], date_str[4:6]
     filename = f"pagecounts-{date_str}-{hour}.gz"
     url = f"https://dumps.wikimedia.org/other/pagecounts-raw/{year}/{year}-{month}/{filename}"
-
     target_prefix = f"{lang} {article} "
 
-    response = request_with_backoff("GET", url, stream=True)
+    for attempt in range(MAX_RETRIES):
+        response = request_with_backoff("GET", url, stream=True)
 
-    if response.status_code == 404:
-        print(f"File not found on server, skipping: {filename}")
-        return 0
+        if response.status_code == 404:
+            print(f"File not found on server, skipping: {filename}")
+            return 0
 
-    count = 0
+        try:
+            with gzip.GzipFile(fileobj=response.raw) as gz:
+                for raw_line in gz:
+                    line = raw_line.decode("utf-8", errors="ignore")
+                    if line.startswith(target_prefix):
+                        time.sleep(SLEEP_BETWEEN_REQUESTS)
+                        return int(line.split()[2])
+            time.sleep(SLEEP_BETWEEN_REQUESTS)
+            return 0
+
+        except (OSError, gzip.BadGzipFile, requests.exceptions.RequestException,
+                urllib3.exceptions.HTTPError) as exc:
+            wait_time = (attempt + 1) * 10 + random.uniform(0, 3)
+            print(f"Stream error while reading {filename} (attempt {attempt + 1}/{MAX_RETRIES}): "
+                  f"{exc}. Retrying in {wait_time:.1f}s...")
+            time.sleep(wait_time)
+            continue
+        finally:
+            response.close()
+
+    print(f"Giving up on {filename} after {MAX_RETRIES} attempts. Counting as 0 for this hour.")
+    return 0
+
+
+def load_completed_days() -> dict:
+    """
+    Read the checkpoint file from a previous (possibly interrupted) run, if
+    it exists, and return already-collected days as {date_str: views}.
+    Returns an empty dict if no checkpoint exists yet, or if it can't be read.
+    """
+    if not CHECKPOINT_FILE.exists():
+        return {}
+
     try:
-        with gzip.GzipFile(fileobj=response.raw) as gz:
-            for raw_line in gz:
-                line = raw_line.decode("utf-8", errors="ignore")
-                if line.startswith(target_prefix):
-                    count = int(line.split()[2])
-                    break  # found the article, no need to keep reading the stream
-    except (OSError, gzip.BadGzipFile, requests.exceptions.RequestException) as exc:
-        # PATCH 1: broadened from (OSError, gzip.BadGzipFile) to also catch
-        # requests.exceptions.RequestException (e.g. ChunkedEncodingError),
-        # which happens when the network drops mid-stream during decompression,
-        # not just when the gzip data itself is corrupted.
-        print(f"Stream error while reading {filename}: {exc}. Treating as 0 for this hour.")
-        return 0
-    finally:
-        response.close()  # release the network connection promptly
-
-    time.sleep(SLEEP_BETWEEN_REQUESTS)
-    return count
+        df = pd.read_csv(CHECKPOINT_FILE, parse_dates=["date"])
+        completed = {row["date"].strftime("%Y%m%d"): int(row["views"]) for _, row in df.iterrows()}
+        if completed:
+            print(f"Resuming: found {len(completed)} day(s) already collected in a previous run: "
+                  f"{list(completed.keys())}")
+        return completed
+    except Exception as exc:
+        print(f"Could not read existing checkpoint ({exc}), starting fresh.")
+        return {}
 
 
 def collect_2009_flashpoint() -> pd.DataFrame:
     """
     Collect hourly-summed daily pageviews for the three key dates in June 2009.
-    Streams every hourly file directly (24 hours x 3 days = 72 files total),
-    saving a checkpoint CSV after each day so partial progress survives
-    an interruption.
+    On startup, checks the checkpoint file and skips any day that was already
+    fully collected in a previous run, instead of re-downloading its 24 hours.
+    Streams every remaining hourly file directly, saving an updated checkpoint
+    after each day.
     """
     target_dates = ["20090624", "20090625", "20090626"]
-    hours = [f"{h:02d}0000" for h in range(24)]  # full 24-hour sweep, as requested
+    hours = [f"{h:02d}0000" for h in range(24)]
 
-    records = []
+    completed = load_completed_days()
+    records = [{"date": pd.to_datetime(d, format="%Y%m%d"), "views": v} for d, v in completed.items()]
+
     for date_str in target_dates:
+        if date_str in completed:
+            print(f"Day {date_str} already collected ({completed[date_str]} views), skipping.")
+            continue
+
         daily_total = 0
         for hour in hours:
             daily_total += get_article_count_streaming(date_str, hour, ARTICLE)
 
         records.append({"date": pd.to_datetime(date_str, format="%Y%m%d"), "views": daily_total})
-        pd.DataFrame(records).to_csv("pageviews_2009_partial.csv", index=False)  # checkpoint
+        pd.DataFrame(records).sort_values("date").to_csv(CHECKPOINT_FILE, index=False)  # checkpoint
         print(f"Day {date_str} done: {daily_total} views")
 
-    return pd.DataFrame(records)
+    return pd.DataFrame(records).sort_values("date").reset_index(drop=True)
 
 
 # --- Part B: 2015-present REST Pageviews API ---------------------------------
 def collect_modern_pageviews(start: str = "2015070100") -> pd.DataFrame:
     """
     Fetch daily pageviews from the official Wikimedia REST API.
-    The end date is computed dynamically as "yesterday" so the request
-    never targets a future date the API cannot yet have data for.
+    The end date is computed dynamically as "yesterday".
     """
     end = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d00")
 
