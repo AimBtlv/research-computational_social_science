@@ -19,9 +19,13 @@ import random
 import requests
 import pandas as pd
 from dotenv import load_dotenv
+from pathlib import Path
 
 # --- Configuration ---------------------------------------------------------
 load_dotenv()
+
+ENV_PATH = Path(__file__).resolve().parent / "culturomcs2.env"
+load_dotenv(dotenv_path=ENV_PATH)
 
 BOT_USERNAME = os.getenv("WIKI_BOT_USERNAME")
 BOT_PASSWORD = os.getenv("WIKI_BOT_PASSWORD")
