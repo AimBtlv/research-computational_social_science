@@ -1,87 +1,136 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Name: revisions_collector_auth.py
+Description: Collects the full revision history (timestamp + byte size) of the
+             "Michael Jackson" Wikipedia article via the MediaWiki Action API,
+             using an authenticated session loaded from environment variables
+             (never hardcoded), plus safe pagination and maxlag throttling.
+Author: [Your Name]
+Date: 2026-09-08
+Version: 1.2
+"""
+
+import os
+import time
 import requests
 import pandas as pd
-import time
+from dotenv import load_dotenv
 
-def download_and_save_history(article_title, filename="jackson_wikipedia_history.csv"):
-    url = "https://wikipedia.org"
-    
-    # Очень важно передать User-Agent, иначе Википедия блокирует пустые запросы!
-    headers = {
-        "User-Agent": "ComputationalSocialScienceResearchBot/1.0 (aima_research@example.com)"
-    }
-    
+# --- Configuration ---------------------------------------------------------
+load_dotenv()  # reads variables from the local .env file, never committed to git
+
+BOT_USERNAME = os.getenv("WIKI_BOT_USERNAME")
+BOT_PASSWORD = os.getenv("WIKI_BOT_PASSWORD")
+
+HEADERS = {
+    "User-Agent": "DigitalHumanitiesProject/1.0 (student.email@university.it; culturomics research)"
+}
+
+API_URL = "https://en.wikipedia.org/w/api.php"
+ARTICLE = "Michael Jackson"
+
+SLEEP_BETWEEN_REQUESTS = 1.0
+MAX_RETRIES = 5
+
+
+def login(session: requests.Session, username: str, password: str) -> None:
+    """
+    Authenticate the session using a Bot Password loaded from environment variables.
+    """
+    if not username or not password:
+        raise RuntimeError(
+            "Missing credentials. Make sure WIKI_BOT_USERNAME and WIKI_BOT_PASSWORD "
+            "are set in your local .env file."
+        )
+
+    token_response = session.get(
+        API_URL,
+        params={"action": "query", "meta": "tokens", "type": "login", "format": "json"},
+        headers=HEADERS,
+        timeout=30,
+    )
+    login_token = token_response.json()["query"]["tokens"]["logintoken"]
+
+    login_result = session.post(
+        API_URL,
+        data={
+            "action": "clientlogin",
+            "username": username,
+            "password": password,
+            "loginreturnurl": "https://en.wikipedia.org/",
+            "logintoken": login_token,
+            "format": "json",
+        },
+        headers=HEADERS,
+        timeout=30,
+    )
+
+    status = login_result.json().get("clientlogin", {}).get("status")
+    if status != "PASS":
+        raise RuntimeError(f"Login failed: {login_result.json()}")
+
+    print("Login successful, session is now authenticated.")
+
+
+def fetch_revision_batch(session: requests.Session, rvcontinue: str | None = None) -> dict:
     params = {
         "action": "query",
+        "format": "json",
         "prop": "revisions",
-        "titles": article_title,
-        "rvprop": "timestamp|size|user",
+        "titles": ARTICLE,
+        "rvprop": "timestamp|size|ids",
         "rvlimit": "500",
-        "format": "json"
+        "rvdir": "newer",
+        "maxlag": "5",
+        "formatversion": "2",
     }
-    
-    revisions_list = []
-    page_count = 1
-    
-    print("Начинаю скачивание истории правок. Пожалуйста, подождите...")
-    
-    while True:
-        try:
-            # Передаем и параметры, и заголовки headers
-            response = requests.get(url, params=params, headers=headers)
-            
-            # Проверяем статус ответа сервера
-            if response.status_code != 200:
-                print(f"Сервер вернул ошибку HTTP: {response.status_code}")
-                break
-                
-            data = response.json()
-            
-            if 'query' not in data:
-                print("Ошибка: В ответе API отсутствуют данные 'query'. Возможно, статья переименована.")
-                break
-                
-            pages = data['query']['pages']
-            
-            for page_id in pages:
-                revisions = pages[page_id].get('revisions', [])
-                for rev in revisions:
-                    revisions_list.append({
-                        'timestamp': rev['timestamp'],
-                        'size_bytes': rev['size'],
-                        'user': rev.get('user', 'Unknown')
-                    })
-            
-            print(f"Обработано пакетов правок: {page_count} (всего собрано: {len(revisions_list)})")
-            
-            # Проверяем, есть ли продолжение истории правок
-            if 'continue' in data and 'rvcontinue' in data['continue']:
-                params['rvcontinue'] = data['continue']['rvcontinue']
-                page_count += 1
-                time.sleep(0.6) # Небольшая пауза, чтобы не злить серверы Википедии
-            else:
-                break
-        except requests.exceptions.JSONDecodeError:
-            print("Ошибка: Сервер Википедии вернул некорректный ответ (не JSON). Вас временно заблокировали за частые запросы.")
-            break
-        except Exception as e:
-            print(f"Произошла непредвиденная ошибка при скачивании: {e}")
-            break
-            
-    if not revisions_list:
-        print("Данные не были скачаны. Файл не сохранен.")
-        return None
-        
-    # Переводим в таблицу Pandas
-    df = pd.DataFrame(revisions_list)
-    
-    # Теперь колонка 'timestamp' гарантированно существует
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    
-    # Сохраняем в CSV файл на компьютер
-    df.to_csv(filename, index=False, encoding='utf-8')
-    print(f"\nУспешно! Все данные сохранены в файл: {filename}")
-    print(f"Всего правок в файле: {len(df)}")
-    return df
+    if rvcontinue:
+        params["rvcontinue"] = rvcontinue
 
-# Запуск функции для статьи о Майкле Джексоне
-df_jackson = download_and_save_history("Michael Jackson")
+    for attempt in range(MAX_RETRIES):
+        response = session.get(API_URL, params=params, headers=HEADERS, timeout=30)
+
+        if response.status_code == 503 or "maxlag" in response.text.lower():
+            wait_time = (attempt + 1) * 5
+            print(f"Server lagged, waiting {wait_time}s before retry...")
+            time.sleep(wait_time)
+            continue
+
+        response.raise_for_status()
+        return response.json()
+
+    raise RuntimeError("Max retries exceeded while fetching revisions.")
+
+
+def collect_all_revisions(session: requests.Session) -> pd.DataFrame:
+    all_revisions = []
+    rvcontinue = None
+
+    while True:
+        data = fetch_revision_batch(session, rvcontinue)
+        page = data["query"]["pages"][0]
+        revisions = page.get("revisions", [])
+        all_revisions.extend(revisions)
+
+        print(f"Collected {len(all_revisions)} revisions so far...")
+
+        if "continue" in data:
+            rvcontinue = data["continue"]["rvcontinue"]
+            time.sleep(SLEEP_BETWEEN_REQUESTS)
+        else:
+            break
+
+    df = pd.DataFrame(all_revisions)
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    return df[["timestamp", "size", "revid"]]
+
+
+# --- Main --------------------------------------------------------------------
+if __name__ == "__main__":
+    session = requests.Session()
+    login(session, BOT_USERNAME, BOT_PASSWORD)
+
+    df_revisions = collect_all_revisions(session)
+    df_revisions.to_csv("michael_jackson_revisions.csv", index=False)
+    print(df_revisions.describe())
