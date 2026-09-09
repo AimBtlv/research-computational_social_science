@@ -24,7 +24,7 @@ from pathlib import Path
 # --- Configuration ---------------------------------------------------------
 load_dotenv()
 
-ENV_PATH = Path(__file__).resolve().parent / "culturomcs2.env"
+ENV_PATH = Path(__file__).resolve().parent / "culturomcs.env"
 load_dotenv(dotenv_path=ENV_PATH)
 
 BOT_USERNAME = os.getenv("WIKI_BOT_USERNAME")
