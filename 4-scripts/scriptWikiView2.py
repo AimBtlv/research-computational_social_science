@@ -6,11 +6,13 @@ Description: Collects Wikipedia pageview data for the "Michael Jackson" article.
              Combines archival hourly dumps (2009, streamed directly from the
              network without ever writing to disk) with the modern REST
              Pageviews API (2015-present). Includes retry with backoff for
-             both HTTP-level and network-level errors, and per-day checkpoint
-             saving so progress is never lost on interruption.
+             both HTTP-level and network-level errors, broadened exception
+             handling for mid-stream network drops, a more cautious request
+             pace for the initial run, and per-day checkpoint saving so
+             progress is never lost on interruption.
 Author: [Your Name]
 Date: 2026-09-09
-Version: 1.2
+Version: 1.3
 """
 
 import time
@@ -30,7 +32,11 @@ HEADERS = {
 }
 
 ARTICLE = "Michael_Jackson"
-SLEEP_BETWEEN_REQUESTS = 1.5
+
+# PATCH 2: increased from 1.5s to 3.0s for a more cautious first run.
+# Once the run completes cleanly with no rate-limit errors, this can be
+# safely lowered back to 1.5-2.0s for subsequent runs.
+SLEEP_BETWEEN_REQUESTS = 3.0
 MAX_RETRIES = 5
 
 
@@ -100,9 +106,11 @@ def get_article_count_streaming(date_str: str, hour: str, article: str, lang: st
                 if line.startswith(target_prefix):
                     count = int(line.split()[2])
                     break  # found the article, no need to keep reading the stream
-    except (OSError, gzip.BadGzipFile) as exc:
-        # Stream was interrupted mid-file or the archive is corrupted server-side.
-        # Treat this hour as missing rather than crashing the whole run.
+    except (OSError, gzip.BadGzipFile, requests.exceptions.RequestException) as exc:
+        # PATCH 1: broadened from (OSError, gzip.BadGzipFile) to also catch
+        # requests.exceptions.RequestException (e.g. ChunkedEncodingError),
+        # which happens when the network drops mid-stream during decompression,
+        # not just when the gzip data itself is corrupted.
         print(f"Stream error while reading {filename}: {exc}. Treating as 0 for this hour.")
         return 0
     finally:
@@ -115,11 +123,12 @@ def get_article_count_streaming(date_str: str, hour: str, article: str, lang: st
 def collect_2009_flashpoint() -> pd.DataFrame:
     """
     Collect hourly-summed daily pageviews for the three key dates in June 2009.
-    Streams every hourly file directly, saving a checkpoint CSV after each day
-    so partial progress survives an interruption.
+    Streams every hourly file directly (24 hours x 3 days = 72 files total),
+    saving a checkpoint CSV after each day so partial progress survives
+    an interruption.
     """
     target_dates = ["20090624", "20090625", "20090626"]
-    hours = [f"{h:02d}0000" for h in range(24)]
+    hours = [f"{h:02d}0000" for h in range(24)]  # full 24-hour sweep, as requested
 
     records = []
     for date_str in target_dates:

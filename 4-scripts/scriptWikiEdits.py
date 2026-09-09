@@ -146,7 +146,6 @@ def fetch_revision_batch(session: requests.Session, rvcontinue: str | None = Non
     response = request_with_backoff(session, "GET", params=params)
     data = safe_json_response(response)
 
-    # Check for API-level errors (different from HTTP-level errors)
     if "error" in data:
         raise RuntimeError(f"API returned an error: {data['error']}")
 
@@ -177,9 +176,7 @@ def collect_all_revisions(session: requests.Session) -> pd.DataFrame:
 
         print(f"Collected {len(all_revisions)} revisions so far...")
 
-        # Save a checkpoint after every batch, so an interruption never costs
-        # you the full run again.
-        pd.DataFrame(all_revisions).to_csv(CHECKPOINT_FILE, index=False)
+        pd.DataFrame(all_revisions).to_csv(CHECKPOINT_FILE, index=False)  # checkpoint
 
         if "continue" in data:
             rvcontinue = data["continue"]["rvcontinue"]
