@@ -3,17 +3,18 @@
 """
 Name: pageviews_collector.py
 Description: Collects Wikipedia pageview data for the "Michael Jackson" article.
-             Combines archival hourly dumps (2009, streamed directly from the
-             network without ever writing to disk) with the modern REST
-             Pageviews API (2015-present). Includes retry with backoff for
-             HTTP-level errors, network-level exceptions, and raw urllib3-level
-             read timeouts. Each hourly file is retried up to MAX_RETRIES times
-             before being counted as 0. Adds resume support: on startup, the
-             script checks the checkpoint CSV and skips any day already fully
-             collected in a previous run, instead of re-downloading it.
+             Combines archival hourly dumps for a configurable date range in 2009
+             (streamed directly from the network without ever writing to disk)
+             with the modern REST Pageviews API (2015-present). The 2009 range
+             now covers 20 June - 10 July 2009 (3 days before the flashpoint plus
+             14 days of decay afterwards), instead of just the three peak dates,
+             so an exponential decay curve can later be fitted to the attention
+             falloff. Days already present in the checkpoint file from a previous
+             run are skipped automatically, so re-running this script only
+             downloads the days that are still missing.
 Author: [Your Name]
 Date: 2026-09-09
-Version: 1.5
+Version: 1.6
 """
 
 import time
@@ -23,7 +24,7 @@ import urllib3
 import requests
 import pandas as pd
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 
 # --- Configuration ---------------------------------------------------------
 HEADERS = {
@@ -38,6 +39,11 @@ ARTICLE = "Michael_Jackson"
 SLEEP_BETWEEN_REQUESTS = 3.0
 MAX_RETRIES = 5
 CHECKPOINT_FILE = Path("pageviews_2009_partial.csv")
+
+# The 2009 collection window: a few days of pre-flashpoint baseline,
+# the peak itself, and 14 days of decay afterwards.
+RANGE_2009_START = "2009-06-20"
+RANGE_2009_END = "2009-07-10"
 
 
 def request_with_backoff(method: str, url: str, **kwargs) -> requests.Response:
@@ -121,9 +127,9 @@ def get_article_count_streaming(date_str: str, hour: str, article: str, lang: st
 
 def load_completed_days() -> dict:
     """
-    Read the checkpoint file from a previous (possibly interrupted) run, if
-    it exists, and return already-collected days as {date_str: views}.
-    Returns an empty dict if no checkpoint exists yet, or if it can't be read.
+    Read the checkpoint file from a previous run, if it exists, and return
+    already-collected days as {date_str: views}. Returns an empty dict if
+    no checkpoint exists yet, or if it can't be read.
     """
     if not CHECKPOINT_FILE.exists():
         return {}
@@ -132,27 +138,33 @@ def load_completed_days() -> dict:
         df = pd.read_csv(CHECKPOINT_FILE, parse_dates=["date"])
         completed = {row["date"].strftime("%Y%m%d"): int(row["views"]) for _, row in df.iterrows()}
         if completed:
-            print(f"Resuming: found {len(completed)} day(s) already collected in a previous run: "
-                  f"{list(completed.keys())}")
+            print(f"Resuming: found {len(completed)} day(s) already collected in a previous run.")
         return completed
     except Exception as exc:
         print(f"Could not read existing checkpoint ({exc}), starting fresh.")
         return {}
 
 
-def collect_2009_flashpoint() -> pd.DataFrame:
+def collect_2009_range() -> pd.DataFrame:
     """
-    Collect hourly-summed daily pageviews for the three key dates in June 2009.
-    On startup, checks the checkpoint file and skips any day that was already
-    fully collected in a previous run, instead of re-downloading its 24 hours.
-    Streams every remaining hourly file directly, saving an updated checkpoint
-    after each day.
+    Collect hourly-summed daily pageviews for every day in the configured
+    2009 range (RANGE_2009_START to RANGE_2009_END). Skips any day already
+    present in the checkpoint file from a previous run. Streams every
+    remaining hourly file directly, saving an updated checkpoint after
+    each day so progress is never lost.
     """
-    target_dates = ["20090624", "20090625", "20090626"]
+    target_dates = [
+        d.strftime("%Y%m%d")
+        for d in pd.date_range(RANGE_2009_START, RANGE_2009_END, freq="D")
+    ]
     hours = [f"{h:02d}0000" for h in range(24)]
 
     completed = load_completed_days()
     records = [{"date": pd.to_datetime(d, format="%Y%m%d"), "views": v} for d, v in completed.items()]
+
+    new_dates = [d for d in target_dates if d not in completed]
+    print(f"Total days in range: {len(target_dates)}. Already collected: {len(completed)}. "
+          f"Remaining to download: {len(new_dates)}.")
 
     for date_str in target_dates:
         if date_str in completed:
@@ -174,9 +186,11 @@ def collect_2009_flashpoint() -> pd.DataFrame:
 def collect_modern_pageviews(start: str = "2015070100") -> pd.DataFrame:
     """
     Fetch daily pageviews from the official Wikimedia REST API.
-    The end date is computed dynamically as "yesterday".
+    The end date is computed dynamically as "yesterday", using a
+    timezone-aware UTC datetime (no longer relying on the deprecated
+    datetime.utcnow()).
     """
-    end = (datetime.utcnow() - timedelta(days=1)).strftime("%Y%m%d00")
+    end = (datetime.now(UTC) - timedelta(days=1)).strftime("%Y%m%d00")
 
     url = (
         f"https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/"
@@ -192,8 +206,9 @@ def collect_modern_pageviews(start: str = "2015070100") -> pd.DataFrame:
 
 # --- Main --------------------------------------------------------------------
 if __name__ == "__main__":
-    print("Начинаю сбор архивных данных за июнь 2009 (потоковый режим, без записи на диск)...")
-    df_2009 = collect_2009_flashpoint()
+    print(f"Начинаю сбор архивных данных за {RANGE_2009_START} — {RANGE_2009_END} "
+          f"(потоковый режим, без записи на диск)...")
+    df_2009 = collect_2009_range()
 
     print("Начинаю сбор данных с 2015 года по REST API...")
     df_modern = collect_modern_pageviews()
@@ -202,3 +217,5 @@ if __name__ == "__main__":
     combined.to_csv("michael_jackson_pageviews.csv", index=False)
     print("Готово. Данные сохранены в michael_jackson_pageviews.csv")
     print(combined.head())
+    print("...")
+    print(combined.tail())
