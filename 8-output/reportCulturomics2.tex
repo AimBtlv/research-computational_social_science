@@ -1,0 +1,177 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{times}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{setspace}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    urlcolor=blue,
+    pdftitle={Culturomics Phenomenon: Case of Michael Jackson Wikipedia Page},
+    pdfauthor={Aim Batalova}
+}
+
+\captionsetup{font=small, labelfont=bf, justification=justified, singlelinecheck=false}
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\setstretch{1.08}
+
+
+\begin{document}
+
+\begin{flushleft}
+\textbf{Course:} Introduction to Computational Social Science\\
+\textbf{Instructor:} Giorgia Minello\\
+\textbf{Department:} Digital and Public Humanities\\
+\textbf{Source:} \url{https://github.com/AimBtlv/research-computational_social_science.git}
+\end{flushleft}
+
+\vspace{1.2cm}
+
+
+\begin{center}
+{\LARGE\bfseries Culturomics Phenomenon}\\[6pt]
+{\large Methodology described by J.B.~Michel (2011)}\\[2pt]
+{\large\itshape Case of Michael Jackson Wikipedia page}\\[10pt]
+{\normalsize Aim Batalova}
+\end{center}
+
+\vspace{0.8cm}
+
+\begin{center}\textbf{Abstract}\end{center}
+\begin{quotation}
+\noindent
+\noindent
+This work examines the Wikipedia article on Michael Jackson as a case study of culturomics, a field proposed by Michel J.B.\ (2011) for the quantitative study of cultural phenomena. Unlike the original Google Books corpus, whose limitations were shown by Pechenick, Danforth, and Dodds, Wikipedia provides two independent signals at once, namely views and edits, which makes it possible to observe not only the consumption but also the production of collective knowledge. Two datasets were collected: daily article views for the period from June 2009 to 2026, and a complete history of 33,893 edits for 2001-2026. The artist's death on 25 June 2009 caused pageviews to rise from 12{,}747 to 4{,}972{,}223 within a day, and the number of edits to rise from 5 to 642 per day. Using Michel's method, it took just one day for audience interest to fall to half its peak, while a full return to baseline took about two weeks. Unlike views and edits, article size did not return to its prior value and continued to grow throughout the following period. A comparison with a secondary spike of attention in April 2026, caused by the release of a biographical film, showed a substantially smaller number of edits and no comparable growth in article size, which points to a dependence of the digital trace's persistence on the nature of the event that caused it.
+\end{quotation}
+
+\section*{Introduction}
+
+A society's collective attention to cultural events leaves measurable traces in digital sources. This observation underlies the field that Jean-Baptiste Michel and his co-authors named culturomics.\footnote{Michel, J.-B., Shen, Y.~K., Aiden, A.~P., Veres, A., Gray, M.~K., The Google Books Team, Pickett, J.~P., Hoiberg, D., Clancy, D., Norvig, P., Orwant, J., Pinker, S., Nowak, M.~A. and Aiden, E.~L., 2011. Quantitative analysis of culture using millions of digitized books. \textit{Science}, 331(6014), pp.176-182.} Culturomics applies quantitative methods, originally developed to study natural processes, to cultural phenomena, and treats large digitized bodies of text as material for measurement, not only for reading.
+
+Since the work of Michel (2011), the study of such traces has relied mainly on the Google Books corpus. However, this source has known limitations. Pechenick, Danforth, and Dodds showed that the Google Books corpus is built like a library, holding a single copy of every book regardless of its actual readership.\footnote{Pechenick E.A., Danforth C.M., Dodds P.S. (2015) Characterizing the Google Books corpus: strong limits to inferences of socio-cultural and linguistic evolution. \textit{PLOS ONE} 10(10):e0137041.} Word frequency in such a corpus reflects the fact of publication rather than the fact of reading, which makes conclusions about cultural popularity less precise than they may first appear.
+
+This work proposes treating Wikipedia as a source free from part of these limitations, while continuing the same research tradition. The case for this choice rests on four reasons. Michel himself already used Wikipedia data in the original paper, when analyzing the fame of individuals. Wikipedia provides two independent signals at once, namely views, which reflect content consumption, and edits, which reflect its production, whereas a book corpus provides only one signal, reflecting an already finished result. Wikipedia data is recorded in real time, unlike books, whose publication takes months or years, which makes a book corpus unsuitable for studying a society's reaction to an event immediately after it occurs. Finally, decentralized editing of an article by many independent contributors is a more direct embodiment of the concept of collective memory, introduced by Maurice Halbwachs,\footnote{Halbwachs, M., \textit{On Collective Memory}, transl. and ed. L.~A. Coser (Chicago: University of Chicago Press, 1992); orig.\ 1925.} than a text written by a single author.
+
+The Wikipedia article on Michael Jackson is used as the case study. Its history shows three consecutive phases. Before 25 June 2009, the article was in routine maintenance mode, and its volume grew slowly over eight years. The artist's death caused a sharp departure from this mode: the number of views rose from 12{,}747 to 4{,}972{,}223 within a day,\footnote{Own dataset, collected from Wikimedia archival dumps (pagecounts-raw) and the Wikimedia REST Pageviews API.} and the rate of editing rose from 5 to 642 edits per day.\footnote{Edit counts are from the author's own dataset, built via the MediaWiki Action API (\texttt{prop=revisions}).} Both indicators then returned to baseline within a few weeks, while the article's size in bytes did not return to its prior level and continued to grow. Michel (2011) describes this kind of dynamic as a response to an "exogenous shock" followed by a gradual decay, referred to as collective forgetting.
+
+The main goal of this work is to test this model on Wikipedia data and to determine whether the change recorded during the period of peak attention persists after views and edits return to their baseline values. Three interconnected levels of analysis are used for this purpose. The first level provides a descriptive picture of all three phases of the phenomenon. The second level measures the speed of audience interest drop, using the direct method Michel (2011) himself used for measuring how quickly interest falls by half. The third level compares the 2009 flashpoint with the secondary spike of attention in April 2026, associated with the release of a biographical film about Jackson, which makes it possible to test whether the persistence of a digital trace depends on the nature of the event that caused it.
+
+
+\section*{Data Preparation}
+
+The study relies on two independent datasets, both collected for the English-language Wikipedia article ``Michael Jackson.''
+
+The first dataset contains the daily number of article views for two periods. For 24--26 June 2009, data was obtained from Wikimedia's archival hourly dumps, since the official pageviews API did not yet exist at that time.\footnote{See the pagecounts-raw archive: \url{dumps.wikimedia.org/other/pagecounts-raw/}.} For the period from 1 July 2015 to the present, data was obtained through the official Wikimedia REST Pageviews API.\footnote{Wikimedia REST API -- Pageviews per-article method. \url{wikimedia.org/api/rest_v1/metrics/pageviews}} Both sources were merged into a single time series with no gaps from 2015 onward.
+
+The second dataset contains the article's complete edit history, comprising 33{,}893 revisions from 25 October 2001 up to date. The data was obtained through the MediaWiki Action API, using the \texttt{prop=revisions} method, with paginated retrieval and storage of the timestamp, identifier, and article size in bytes for each revision.\footnote{See MediaWiki Action API documentation, \url{mediawiki.org/wiki/API:Revisions}}
+
+Both collection processes followed Wikimedia's API etiquette, including request-rate limiting and a self-identifying User-Agent header.\footnote{API:Etiquette, \url{mediawiki.org/wiki/API:Etiquette}; see also the Wikimedia User-Agent Policy, \url{meta.wikimedia.org/wiki/User-Agent_policy}.}
+
+The final datasets contain no missing values or duplicate records, as confirmed during an initial data-integrity check.
+
+
+\section*{Method Comparison}
+
+Three methods were used to analyze the collected data, corresponding to the three levels at which the phenomenon is examined in the analytical notebook.
+
+The first level is descriptive in nature and does not involve fitting a model. Three time series, namely views, number of edits, and article size, are presented graphically with the flashpoint date marked. This level provides the basis for the subsequent quantitative analysis and does not replace it.
+
+The second level, Audience interest drop, measures the speed at which audience interest declines after the peak. The day with the peak view count is identified, and then, within the observation window extending to the end of July 2009, the first day on which the value falls below half of the peak is identified. The difference between these two dates, expressed in days, is taken as the estimate of decay speed.
+
+The third level of analysis compares two events, namely the 2009 flashpoint and the secondary spike of views in April 2026, associated with the release of a biographical film about Jackson.\footnote{\textit{Michael} (2026, dir.\ Antoine Fuqua), Lionsgate/Universal Pictures -- US premiere 24 April 2026.} The comparison is carried out across three indicators within an identical time window relative to each event's peak: number of edits, change in article size, and peak view count. This method is treated as a comparative analysis of individual cases rather than a test of statistical regularity, since the number of events considered is insufficient for such a conclusion.
+
+When interpreting the difference between the 2009 and 2026 events, it is taken into account that the two cases differ not only in timing but also in the nature of the event itself. A death is a single, unpredictable shock, whereas a film release is a pre-planned campaign capable of generating repeated waves of attention, as confirmed by a moderate secondary rise in views around the date of the film's streaming release in August 2026.\footnote{Starz platform, 10 Aug.\ 2026.} This circumstance is addressed in the Discussion section as an alternative explanation for the observed differences, alongside the hypothesis of accelerating cultural forgetting.
+
+
+\section*{Analysis}
+
+The results of the analysis confirm the three phases described in the Introduction and allow them to be expressed quantitatively.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{5-images/css1.png}
+    \caption{Daily pageviews, daily edit counts, and growing article size for the Wikipedia article ``Michael Jackson,'' 2001--2026. The dashed vertical line marks 25 June 2009.\\
+    \footnotesize\textit{Source: Own datasets, collected from Wikimedia archival dumps (pagecounts-raw), the Wikimedia REST Pageviews API, and the MediaWiki Action API.}}
+    \label{fig:general}
+\end{figure}
+
+The overall picture, shown in Figure\ref{fig:general}, shows synchronized behavior of all three signals around 25 June 2009, alongside fundamentally different subsequent dynamics. Views and edits return to baseline values within a few weeks after the peak, whereas article size shows a stepwise, irreversible increase throughout the entire observed period.
+
+For the 2009 event, it took just one day for audience interest to fall to half its peak. The peak view count, recorded on 26 June, fell below half of its value by 27 June. On its own, this figure reflects only the speed of the first, sharpest drop and does not describe the entire decay trajectory.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.75\textwidth]{5-images/css2.png}
+    \caption{Daily pageviews around the 2009 flashpoint, 20 June -- 15 July 2009. The peak (26 June) and the day audience interest first fell to half its peak value (27 June) are marked.\\
+    \footnotesize\textit{Source: Own dataset, collected from Wikimedia archival dumps (pagecounts-raw).}}
+    \label{fig:halflife}
+\end{figure}
+
+Figure~\ref{fig:halflife} shows a fuller picture over the period up to mid-July. After the initial sharp drop, views continue to decline less sharply, with a brief secondary rise around 8--9 July, before settling near baseline. This one-day mark thus captures the moment of exiting the acute shock phase, whereas a full return to baseline takes about two weeks.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\textwidth]{5-images/css3.png}
+    \caption{Number of edits and change in article size within a 25-day window (5 days before, 20 days after) around the peak of the 2009 and 2026 events.\\
+    \footnotesize\textit{Source: Own calculation based on michael\_jackson\_revisions.csv and michael\_jackson\_pageviews.csv.}}
+    \label{fig:comparison}
+\end{figure}
+
+A comparison of 25-day windows around the 2009 and 2026 peaks, shown in Figure \ref{fig:comparison}, yields the following values. For the 2009 event, 2,560 edits and a 13,347-byte increase in article size were recorded. For the 2026 event, 90 edits and a change in article size equal to zero were recorded.\footnote{Author's calculation, \texttt{michael\_jackson\_revisions.csv} (window: -5 to +20 days around each peak).} The zero value for 2026 is partly a consequence of the data-cleaning method, under which article size cannot decrease. Since by 2026 the article is already close to its historical maximum, the absence of growth reflects the absence of new record-setting edits within the window considered, not the absence of any editing activity.
+
+The relationship obtained is consistent with the model set out in the Introduction. When interpreting the difference between the two events, however, the methodological caveat formulated in the Method Comparison section must be taken into account. The substantially smaller number of edits and the absence of size growth in 2026 may be explained not only by the lower intensity of the event itself, but also by its different nature. A film release, unlike a death, does not require the editing community to revise the article's factual content, only to record an already known event.
+
+
+\section*{Discussion and conclusions}
+
+This work examined the Wikipedia article on Michael Jackson as an empirical case of the phenomenon described by Michel (2011) as a response to an exogenous shock followed by collective forgetting.\footnote{See Michel et al., cited in the Introduction.} The results obtained broadly confirm this model, but also reveal two points that warrant separate discussion.
+
+The first point concerns how the one-day figure should be read. On its own, a single day, obtained for the 2009 event, might be read as a sign of extremely fast forgetting. A closer look at the period up to mid-July shows a different picture: the acute shock phase does indeed end within a day, but the decline in interest continues for about another two weeks before the indicators settle at baseline. This suggests that forgetting, as captured quantitatively through a single metric, may consist of several consecutive phases with different speeds, rather than a single process with one constant decay rate.
+
+The second point concerns the persistence of the digital trace. The comparison with the secondary spike in 2026 shows that not every rise in attention produces a comparable result. The 2009 death caused an increase of roughly a hundredfold in the number of edits and a marked increase in article size. The 2026 film release, despite a comparable relative rise in views, produced neither a comparable number of edits nor growth in text volume. This result is consistent with the view set out in the Introduction on the basis of the work of Pechenick, Danforth, and Dodds,\footnote{Pechenick et al. (2015), op.\ cit.} namely that not every attention signal is equivalent in nature. Views reflect the fact of interest, whereas edits reflect participation in the production of collective knowledge, and it is apparently the latter that determines whether a persistent trace remains.
+
+The difference between the two events allows two explanations that are not mutually exclusive. The first is consistent with Michel's (2011) hypothesis of accelerating cultural forgetting across decades. The second explanation is that the 2009 and 2026 events differ in their nature, not only in their timing: a death requires the editing community to revise the article's factual content, whereas a film release requires only its addition. The available data are insufficient to favor one of these explanations, since only two events were considered. Further testing of the accelerating-forgetting hypothesis would require comparing several events of the same type occurring across different decades.
+
+The results obtained also confirm the second part of the original model. Views and edits return to baseline values, whereas article size retains the increase recorded during the period of peak attention throughout the entire subsequent observed period, up to 2026. This is consistent with Halbwachs's concept of collective memory,\footnote{Halbwachs (1992), already cited in the Introduction.} used there as the basis for choosing Wikipedia as the data source: the decentralized editing process fixes the outcome of collective attention in a form that does not disappear along with the attention itself.
+
+Overall, the case of the Michael Jackson article shows that culturomic analysis, originally developed on book-corpus material, applies equally well to Wikipedia data, with the added benefit of separating consumption and production signals.
+
+
+\section*{Limitations}
+
+This work has a number of methodological and technical limitations.
+
+The first limitation concerns the number of events involved in the third level of analysis. Only two cases, 2009 and 2026, were considered, which allows for a meaningful comparison but does not allow the two competing explanations proposed in the Discussion, namely accelerating cultural forgetting and a difference in the nature of the events, to be distinguished statistically. A similar limitation applies to this interest-fall-by-half method, which was likewise applied to only one fully documented decay case.
+
+The second limitation concerns the incompleteness of the archival pageview data for 2009. Some of the hourly files in the pagecounts-raw archive used for this period were unavailable on the server at the time of collection, which could have led to a slight underestimation of the total daily view count on certain days.
+
+Third, the interpretation of the difference between the 2009 and 2026 events, set out in the Discussion, remains substantive rather than statistically confirmed. The proposed explanation based on the different nature of the events was not tested on additional cases of the same type and should be treated as a hypothesis requiring further testing, not as an established fact.
+
+
+\section*{References}
+\begin{enumerate}
+\setlength{\itemsep}{4pt}
+\item Michel, J.-B., Shen, Y.K., Aiden, A.P., Veres, A., Gray, M.K., The Google Books Team, Pickett, J.P., Hoiberg, D., Clancy, D., Norvig, P., Orwant, J., Pinker, S., Nowak, M.A.,  Aiden, E.L. (2011). Quantitative Analysis of Culture Using Millions of Digitized Books. Science, 331(6014), 176--182.
+\item Pechenick, E.A., Danforth, C.M.,  Dodds, P.S. (2015). Characterizing the Google Books Corpus: Strong Limits to Inferences of Socio-Cultural and Linguistic Evolution. PLOS ONE, 10(10), e0137041.
+\item Halbwachs, M. (1925). Les cadres sociaux de la mémoire. Paris: Félix Alcan.
+\item Own dataset of article views, collected from Wikimedia archival dumps (pagecounts-raw) and the Wikimedia REST Pageviews API.
+\item Own dataset of the article's edit history, collected via the MediaWiki Action API (prop=revisions).
+\item Wikimedia Dumps, pagecounts-raw archive. \url{dumps.wikimedia.org/other/pagecounts-raw/}
+\item Wikimedia REST API, Pageviews per-article method. \url{wikimedia.org/api/rest_v1/metrics/pageviews}
+\item MediaWiki Action API, documentation. \url{mediawiki.org/wiki/API:Revisions}
+\item Wikimedia User-Agent Policy and API:Etiquette. \url{meta.wikimedia.org/wiki/User-Agent_policy}; \url{mediawiki.org/wiki/API:Etiquette}
+\item Lionsgate/Universal Pictures. Michael (2026). Directed by Antoine Fuqua. US premiere on 24 April 2026.
+\item The streaming release of Michael on the Starz platform, 10 August 2026.
+\item Own calculation based on cleaned data from \texttt{michael\_jackson\_revisions.csv}, a window of 5 days before and 20 days after each event's peak.
+\end{enumerate}
+
+\end{document}
